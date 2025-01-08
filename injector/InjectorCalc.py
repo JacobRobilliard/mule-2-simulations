@@ -5,6 +5,11 @@
 #   October 2024
 #   
 #   This program requires the CoolProp library
+#
+#   Theory based on "Mass Flow Rate and Isolation Characteristics of Injectors
+#                   for Use with Self-Pressurizing Oxidizers in Hybrid Rockets" 
+#          by B. Waxman, J. E. Zimmerman, B. J. Cantwell, & G. G. Zilliac
+#          found at https://ntrs.nasa.gov/api/citations/20190001326/downloads/20190001326.pdf               
 #   
 ##################################################################
 import math
@@ -12,7 +17,7 @@ import CoolProp
 from CoolProp.CoolProp import PropsSI
 import os
 import sys
-from scipy.optimize import root_scalar
+
 
 class InjectorCalc:
 
@@ -61,9 +66,6 @@ class InjectorCalc:
 
         v2 = math.sqrt(2*(h1-h2))
 
-        #rho = PropsSI('D', 'T', T2, 'Q', X, InjectorCalc.fluid)
-        #print("Alt mass flow = rho v A = ", rho*v2*8*math.pi*(1.4/2000)^2 )
-        
         return [T1, p1, T2, p2, X, v2]
     
     def printState(T, p, X = -1):
@@ -163,7 +165,7 @@ class InjectorCalc:
 
     #Secondary(Helper) Functions
     def Cd(d:float)->float: #enter diameter in mm 
-        return 0.2
+         return 0.82291*math.exp(-0.0824635*d) #Formula based on exponential regression of Cd data vs Diameter in paper referenced above. Feel free to change if better methodology is found
     def holeArea(d:float)->float: #enter diameter in mm, returns area in m
         d/= 1000.0
         return 0.25*math.pi*d**2
@@ -172,83 +174,23 @@ class InjectorCalc:
     def K2C(TK:float)->float:
         return round(TK - 273.15)
 
-    def MassTimeSeries(T1, p1, p2, N, d, m0, V0, dt,):
-        
-        m_f = m0
-        m_g = 0
-
-        state = InjectorCalc.getExitState(T1, p1, p2)
-        m_flow = InjectorCalc.getMassFlow(T1, p1, p2, N, d)
-
-        with open("output/state.dat", "w") as file: 
-            file.write("# State of outlet flow\n")
-            file.write("# T [K] \t p [Pa] \t X [-] \t m_flow [kg/s]")
-
-        InjectorCalc.iterate(T1, p1, p2, N, d, m_f, m_g, m_flow, V0, dt)
-
-    
-
-    def iterate(T, p, p0, N, d, m_f, m_g, m_flow, V0, dt):
-
-        if(m_f <= 0):
-            return 0
-        else:
-            m_flow = InjectorCalc.getMassFlow(T, p, p0, N, d)
-            states = InjectorCalc.getExitState(T, p, p0)
-            
-            
-            v = states[5]
-        
-
-            m_f -= m_flow*dt
-
-            rhof = PropsSI('D', 'T', T, 'Q', 0, InjectorCalc.fluid)
-            rhog = PropsSI('D', 'T', T, 'Q', 1, InjectorCalc.fluid)
-
-            m_g = (V0 - (m_f/rhof))*rhog
-
-            X = m_g/m_f
-
-            hf = PropsSI('H', 'T', T, 'Q', 0, InjectorCalc.fluid)
-            h = PropsSI('H', 'T', T, 'Q', X, InjectorCalc.fluid)
-            
-            H = (m_f+m_g)*h
-            H -= m_flow*dt*(hf + 0.5*math.pow(v,2))
-
-            def enthalpy_error(T): #Function to find root of. We are trying to solve for T in H(T) = H, so we find root of H(T) - H = 0
-                return PropsSI('H', 'T', T, 'Q', X, InjectorCalc.fluid) - H
-            
-            T = root_scalar(enthalpy_error, bracket = [183, 303]).root #Limit search between 200K and initial temperature, as temp will decrease
-            p = PropsSI('P', 'T', T, 'Q', 0, InjectorCalc.fluid)
-
-            with open("output/state.dat", "w") as file: 
-                file.write(str(T) + "\t" + str(p) + "\t" + str(X) + "\t" + str(m_flow))
-
-        
-            InjectorCalc.iterate(T, p, p0, N, d, m_f, m_g, m_flow, V0, dt)
-
-
     
 def main():
 
     os.system('cls')
 
+    #System Parameters
     T1 = InjectorCalc.C2K(20)
     p1 = 5.5e6 #Takes in initial pressure in Pa 
     p2 = 101e3 #Takes in Combustion chamber pressure in Pa 
     
+    #Injector Design Parameters
     N:int = 8 #Number of holes
-    d:float = 1.4 #Diameter of holes in mm
-
-    m0 = 1 #kg
-    V0 = 0.00171 #m^3
-    dt = 0.1 #s
-
-    InjectorCalc.MassTimeSeries(T1, p1, p2, N, d, m0, V0, dt)
+    d = 1.4 #Diameter of holes in mm
     
-    #m = InjectorCalc.getMassFlow(T1, p1, p2, N, d)
+    m = InjectorCalc.getMassFlow(T1, p1, p2, N, d)
         
-    #print(m, " [kg/s]")
+    print(m, " [kg/s]")
 
     
 
