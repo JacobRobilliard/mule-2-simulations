@@ -6,7 +6,7 @@
 #
 #   *NOT FOR PUBLIC RELEASE*
 #
-#       ##READ ME##
+#       ##READ ME## BEANS
 #
 #   This software uses NASA's Chemical Equilibrium with Applications code
 #   Refer to relevant documentation to setup and install on your own device
